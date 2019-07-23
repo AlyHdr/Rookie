@@ -1,0 +1,2 @@
+-auxFile is "aux.h" header file included in the main code
+-in the main code all commented lines can be totally omitted but are kept for testing purposes

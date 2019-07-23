@@ -1,0 +1,479 @@
+#include<stdio.h>
+#include<stdlib.h>
+#include<unistd.h>
+#include<sys/wait.h>
+#include<ctype.h> 
+#include<time.h>
+#include<math.h>
+#include "aux.h"
+void fx(int signal_number)
+{
+	//printf("signaled\n");
+}
+void function(int signal_number)
+{	
+	//printf("signal verified\n");
+}
+main ()
+{	//srand(time(NULL));
+	double start_time = time(NULL);	
+	int index=0 ;//index of array of time		
+	int c=0,k ;//loop variables
+	int memorySize=0;
+	printf("give the number of processes:\n");
+	scanf("%d",&c);
+	printf("enter the size of the memory in Gbytes( <= 8) :");
+	scanf("%d",&memorySize);
+	while(memorySize>8 || memorySize<=0)
+	{
+		printf("the size of the memory should be less than or equal to 8Gb and greater than zero:");
+		scanf("%d",&memorySize);
+	}
+	
+	int algo=0;
+	int RR=0;
+	printf("the process management has 3 algorythms \n FIFO=0 \n SJF=1 \n RR=2 \n select the number of the algorythm  you need\n");
+	scanf("%d",&algo);
+	if(algo==2)
+	{
+		printf("enter the burst time of the RR algo : ");		
+		scanf("%d",&RR);	
+	}	
+	clock_t end[c];	
+	int nbrs[c];
+	process childs[c];//declare array of childs
+	for(k=0;k<c;k++)
+	{
+			int nbr=random()%2+1;
+			nbrs[k]=nbr;		
+	}
+	int randomsizes[c];
+	for(k=0;k<c;k++)
+	{
+			int se=random()%1000000+1;//////////////
+			randomsizes[k]=se;		
+	}
+	double arrivalTimes[c];
+	int p[c][2];//pipe (size of variable c)
+	int ids[c]; //array od ids of his child
+	int T=0,S=0,i=0;
+	double ar=0.0;
+	int Times[c],sizes[c];
+	double arrivals[c];
+	int newpipe[2];
+	pipe(newpipe);
+	int memoryPipe[2];
+	pipe(memoryPipe);
+	//processes
+	int j=0;
+	for(;j<c;j++)
+	{	pipe(p[j]);
+		int x=fork();
+		if(x==0)
+		{	close(p[j][0]);
+			int ttime=nbrs[index];
+			int size=randomsizes[index];
+			double arrive=time(NULL);//arrivalTimes[index];
+			fflush(stdout);
+			printf("I'm child child %d,my time=%d,I need %d Kb size arrived at %lf----j=%d\n",getpid(),ttime,size,arrive,j);
+			fflush(stdout);
+			write(p[j][1],&ttime,sizeof(ttime));
+			write(p[j][1],&size,sizeof(size));
+			write(p[j][1],&arrive,sizeof(arrive));
+			signal(SIGUSR1,fx);
+			pause();
+
+			if(algo==2)
+			{	
+				while(ttime>0)
+				{
+					signal(SIGUSR2,function);				
+					
+					if(ttime>RR)
+					{
+						sleep(RR);
+						ttime-=RR;
+						//printf("/p%d/",j);
+						fflush(stdout);						
+						//printf("//////////////////////////////////////////////////\n");						
+						//printf("/p%d/",j);
+						pause();
+						
+					}
+					else
+					{
+						//printf("/p%d/",j);
+						fflush(stdout);
+						//printf("//////////////////////////////////////////////////\n");
+						//printf("/p%d/",j);
+						sleep(ttime);
+						ttime-=ttime;
+						pause();
+					}					
+				}
+			
+				
+                 	}
+			else
+			{
+				
+				int show=ttime;
+				//printf("time is %d\n",show);
+				sleep(show);
+				printf("ended process of id %d\n",getpid());
+				int q;			
+				close(newpipe[1]);
+				read(newpipe[0],&q,sizeof(q));
+				kill(q,SIGUSR1);
+				pause();
+			}
+		}
+		else
+		{
+			close(p[j][1]);
+			ids[j]=x;
+			read(p[j][0],&T,sizeof(T));
+			read(p[j][0],&S,sizeof(S));
+			read(p[j][0],&ar,sizeof(ar));
+			Times[j]=T;
+			sizes[j]=S;
+			arrivals[j]=ar;
+			index++;
+		}
+	}
+	int z=0;
+	for(;z<c;z++)
+	{
+		childs[z].id=ids[z];
+		childs[z].timeneeded=Times[z];
+		childs[z].size=sizes[z];		
+		childs[z].arriveltime=arrivals[z];
+		childs[z].responsetime=-1;
+	}
+	
+	int memo=fork();
+	
+	if(memo==0)
+	{
+		//memory management
+		double hit=0,miss=0;
+		double hitP=0.0,missP=0.0;
+		int currentPos=0;
+		int runningProcess=0;
+		int pagesNumber=(memorySize*1024*1024);
+		pagesNumber=pagesNumber/100000;
+		printf("pages number is %d*****************\n",pagesNumber);
+		int memory[pagesNumber+1];
+		int freePages=pagesNumber+1 ;
+		int qp=0;		
+		for(qp=0;qp<pagesNumber+1;qp++)
+		{
+			memory[qp]=-2;
+		}
+		int sizeOfProcess=0;
+		close(memoryPipe[1]);
+		while(1)
+		{		
+			signal(SIGUSR1,function);		
+			pause();		
+			read(memoryPipe[0],&runningProcess,sizeof(runningProcess));
+			read(memoryPipe[0],&sizeOfProcess,sizeof(sizeOfProcess));
+			int pagesReserved;
+			if(sizeOfProcess%100000==0)
+   			{
+   				pagesReserved=(int)sizeOfProcess/100000;
+			}
+			else
+			{
+				pagesReserved=(int)((sizeOfProcess/100000)+1);
+			}
+			fflush(stdout);
+			printf("\nnow working on process %d, with size %d needing %d number of pages\n",runningProcess,sizeOfProcess,pagesReserved);
+
+					int check,found=0;
+					for(check=0;check<pagesNumber+1;check++)
+					{
+						if(memory[check]==runningProcess){
+							found=1;
+							hit++;
+							break ;
+						}
+					}
+			
+			switch(algo)
+			{
+				case 0:
+					miss++;
+					for(qp=0;qp<pagesNumber+1;qp++)
+					{
+						memory[qp]=-2;
+					}
+					if(pagesReserved<=pagesNumber)
+					{
+						for(qp=0;qp<pagesReserved;qp++)
+						{
+							memory[qp]=runningProcess;
+						}
+					}
+					else
+						{printf("memory out of space **\n");}
+					break;
+				case 1:
+					miss++;
+					for(qp=0;qp<pagesNumber;qp++)
+					{
+						memory[qp]=-2;
+					}
+					if(pagesReserved<=pagesNumber)
+					{
+						for(qp=0;qp<pagesReserved;qp++)
+						{
+							memory[qp]=runningProcess;
+						}
+					}
+					else
+						{printf("memory out of space **\n");}
+					break;
+				case 2:
+					
+				if(found==0)			
+				{
+					miss++;
+					if(freePages>=pagesReserved)
+					{		
+						for(qp=0;qp<pagesReserved;qp++)
+						{	
+							memory[currentPos]=runningProcess;
+							currentPos=(currentPos+1)%(pagesNumber+1);
+							freePages=freePages-1 ;
+						}	
+					}
+					else
+					{	
+						int removePos=(currentPos+pagesReserved-1);
+						removePos=removePos%(pagesNumber+1);
+						int remove=memory[removePos];
+						int t=currentPos;
+						while(t!=removePos)
+						{
+							if(memory[t]!=-2)
+							{
+								memory[t]=-2;
+								freePages=freePages+1;
+							}
+							t=(t+1)%(pagesNumber+1);
+		
+						}
+						while(t!=currentPos)
+						{
+							if(memory[t]==remove)
+							{
+								memory[t]=-2;
+								freePages++ ;
+								t=(t+1)%(pagesNumber+1);
+							}else
+								break ;
+							
+						}
+						int q;
+						for(q=0;q<pagesReserved;q++)
+						{
+							memory[currentPos]=runningProcess;
+							currentPos=(currentPos+1);
+							currentPos=currentPos%(pagesNumber+1);
+							freePages=freePages-1 ;
+						}
+					}					
+
+					break;
+				}//end of if found ;
+			}//end of switch
+			
+			for(qp=0;qp<pagesNumber;qp++)
+			{
+				printf("%d,",memory[qp]);
+			}
+			printf("\n \n********************** %d  hits and %d misses ********************** \n \n",(int)hit,(int)miss);
+			hitP=(hit/(hit+miss))*100;missP=(miss/(hit+miss))*100;
+			printf("\n \n********************** %lf%%  hits and %lf%% misses ********************** \n \n",hitP,missP);			
+			fflush(stdout);
+			FILE *fp;
+			fp=fopen("hitmiss.txt","w");
+			fprintf(fp,"******** %lf%%  hits and %lf%% misses ******** \n",hitP,missP);
+			fclose(fp);
+			
+		}//end of while
+			fflush(stdout);
+			printf("\n \n\n ****************************************************************************************************************\n");
+			fflush(stdout);
+
+	}
+	else
+	{
+		
+		double globalWait=0,globalResponse=0,globalTurnAround=0;
+		sleep(2);
+		int fk=fork();
+		if(fk==0)
+		{						
+			int backup[c];
+			 
+			//process management child
+			switch(algo)
+			{
+			case 0:
+				FIFO(childs,z);
+				for(z=0;z<c;z++)
+				{	
+					double t3=time(NULL);
+					fflush(stdout);			
+					printf("after FIFO id %d he need %d time and size %d arrived queue at:%lf\n",childs[z].id,childs[z].timeneeded,childs[z].size,childs[z].arriveltime);
+				
+					kill(childs[z].id,SIGUSR1);	
+					close(memoryPipe[0]);					
+					write(memoryPipe[1],&childs[z].id,sizeof(childs[z].id));
+					write(memoryPipe[1],&childs[z].size,sizeof(childs[z].size));				
+					kill(memo,SIGUSR1);
+					int thisId=getpid();
+					close(newpipe[0]);				
+					write(newpipe[1],&thisId,sizeof(thisId));
+					signal(SIGUSR1,fx);
+					pause();			
+					kill(childs[z].id,SIGINT);
+					double t2=time(NULL);					
+					childs[z].turnaround=t2-childs[z].arriveltime;
+					childs[z].waitingtime=childs[z].turnaround-childs[z].timeneeded;
+					childs[z].responsetime=t3-childs[z].arriveltime;
+					printf("\n \n waiting time=%lf response time=%lf turnaround=%lf\n \n",childs[z].waitingtime,childs[z].responsetime,childs[z].turnaround);
+					globalTurnAround+=childs[z].turnaround;
+					globalWait+=childs[z].waitingtime;
+					globalResponse+=childs[z].responsetime;
+				}
+				break;
+			case 1:
+				SJF(childs,z);
+				for(z=0;z<c;z++)
+				{	
+					double t3=time(NULL);					
+					fflush(stdout);
+					printf("after SJF of id %d he need %d time and size %d arrived queue at:%lf\n",childs[z].id,childs[z].timeneeded,childs[z].size,childs[z].arriveltime);
+					
+					kill(childs[z].id,SIGUSR1);
+					close(memoryPipe[0]);															
+					write(memoryPipe[1],&childs[z].id,sizeof(childs[z].id));
+					write(memoryPipe[1],&childs[z].size,sizeof(childs[z].size));	
+					kill(memo,SIGUSR1);
+					int thisId=getpid();
+					close(newpipe[0]);				
+					write(newpipe[1],&thisId,sizeof(thisId));
+					signal(SIGUSR1,fx);
+					pause();
+					kill(childs[z].id,SIGINT);
+					double t2=time(NULL);					
+					childs[z].turnaround=t2-childs[z].arriveltime;
+					childs[z].waitingtime=childs[z].turnaround-childs[z].timeneeded;
+					childs[z].responsetime=t3-childs[z].arriveltime;
+					printf("\n \n waiting time=%lf response time=%lf turnaround=%lf\n \n",childs[z].waitingtime,childs[z].responsetime,childs[z].turnaround);
+					globalTurnAround+=childs[z].turnaround;
+					globalWait+=childs[z].waitingtime;
+					globalResponse+=childs[z].responsetime;
+				}
+				break;
+			case 2:
+				RoundRobin(childs,z);
+				for(z=0;z<c;z++)
+				{/*printf("after RR of id %d he need %d time and size %d arrived queue at:%lf\n",childs[z].id,childs[z].timeneeded,childs[z].size,childs[z].arriveltime);*/}
+				
+				int killedChildsCount=0;
+				for(z=0;z<c;z++)
+				backup[z]=0;
+				while(killedChildsCount<c)
+				{			
+					for(z=0;z<c;z++)
+					{	
+						fflush(stdout);
+						double t3=time(NULL);
+						if(backup[z]==0)
+						backup[z]=childs[z].timeneeded ;
+						if(childs[z].timeneeded>0)
+						{	
+							close(memoryPipe[0]);															
+							write(memoryPipe[1],&childs[z].id,sizeof(childs[z].id));
+							write(memoryPipe[1],&childs[z].size,sizeof(childs[z].size));										
+							kill(memo,SIGUSR1);				
+							kill(childs[z].id,SIGUSR1);
+							int thisId=getpid();
+							close(newpipe[0]);				
+							write(newpipe[1],&thisId,sizeof(thisId));
+							if(childs[z].timeneeded<=RR)
+							{
+								sleep(childs[z].timeneeded);
+								childs[z].timeneeded-=childs[z].timeneeded;
+								killedChildsCount++;	
+								kill(childs[z].id,SIGINT);
+								double t2=time(NULL);
+								childs[z].turnaround=t2-childs[z].arriveltime;
+								childs[z].waitingtime=childs[z].turnaround-backup[z];
+								if(childs[z].responsetime==-1)
+							{childs[z].responsetime=t3-childs[z].arriveltime;}
+								printf("\n \n waiting time=%lf response time=%lf turnaround=%lf\n \n",childs[z].waitingtime,childs[z].responsetime,childs[z].turnaround);
+							        globalTurnAround+=childs[z].turnaround;
+								globalWait+=childs[z].waitingtime;
+								globalResponse+=childs[z].responsetime;
+								
+							}
+							else
+							{
+								kill(childs[z].id,SIGUSR2);
+								sleep(RR);
+								childs[z].timeneeded-=RR;
+								if(childs[z].responsetime==-1)
+							{childs[z].responsetime=t3-childs[z].arriveltime;}
+								printf("\n \n waiting time=%lf response time=%lf turnaround=%lf\n \n",childs[z].waitingtime,childs[z].responsetime,childs[z].turnaround);
+							}
+							
+						}
+					
+					}
+				}
+				kill(memo,SIGINT);
+				break;
+			default:
+				break;
+			}
+			 
+	   		double time_taken = time(NULL); // in seconds 
+			time_taken=time_taken-start_time;
+			time_taken=time_taken/60;
+			double AverageWaitingTime=globalWait/c , AverageResponseTime=globalResponse/c , AverageTurnAround=globalTurnAround/c ;
+			FILE *f;
+			f=fopen("result.txt","a");
+			switch(algo){
+			case 0 :
+			fprintf(f,"execution of %d processes took %f minutes by FIFO algorythm with AverageWaitingTime=%f second, AverageResponseTime=%f second, AverageTurnAround=%f second\n",c,time_taken,AverageWaitingTime,AverageResponseTime,AverageTurnAround);
+			break ;
+
+			case 1 :
+			fprintf(f,"execution of %d processes took %f minutes by SJF algorythm with AverageWaitingTime=%f second, AverageResponseTime=%f second, AverageTurnAround=%f second\n",c,time_taken,AverageWaitingTime,AverageResponseTime,AverageTurnAround);
+			break ;
+
+			case 2 :
+			fprintf(f,"execution of %d processes took %f minutes by Round Robin algorythm of burst time=%d second with AverageWaitingTime=%f second, AverageResponseTime=%f second, AverageTurnAround=%f second\n",c,time_taken,RR,AverageWaitingTime,AverageResponseTime,AverageTurnAround);
+			break ;
+			}
+			fclose(f);
+			//printf("time taken=%f**********************************************************************************\n",time_taken);
+			exit(0);
+		}
+		else
+		{
+			//parent
+			int res;
+			fflush(stdout);		
+			//printf("\n\n id me=%d parent=%d***************************************************\n\n",getpid(),getppid());
+			wait(&res);
+			fflush(stdout);
+		}
+	}
+
+}

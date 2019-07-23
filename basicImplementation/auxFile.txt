@@ -1,0 +1,84 @@
+#ifndef AUX_H
+#define AUX_H
+#include<stdio.h>
+#include<stdlib.h>
+
+
+struct process{
+	int id;
+	int timeneeded;
+	int size ;
+	double arriveltime;
+	double responsetime;//waiting-first response
+	double turnaround;// end of execution time -arrival
+	double waitingtime;//turnaround-timeneeded
+	};
+typedef struct process process;
+
+void FIFO(process array[],int n)
+{
+	int z=0;
+	int i,j;
+	for(i=0;i<n;i++)
+	{
+		for(j=0;j<n-1;j++)
+		{
+			if(array[j+1].arriveltime<array[j].arriveltime)
+			{
+				process a=array[j+1];
+				array[j+1]=array[j];
+				array[j]=a;
+				z=1;
+			}
+		}
+		if(z==0)
+		break;
+	}
+	
+}
+void SJF(process array[],int n)
+{
+	int z=0;
+	int i,j;
+	for(i=0;i<n;i++)
+	{
+		for(j=0;j<n-1;j++)
+		{
+			if(array[j+1].timeneeded<array[j].timeneeded)
+			{
+				process a=array[j+1];
+				array[j+1]=array[j];
+				array[j]=a;
+				z=1;
+			}
+		}
+		if(z==0)
+		break;
+	}
+	
+}
+void RoundRobin(process array[],int n)
+{
+	int z=0;
+	int i,j;
+	for(i=0;i<n;i++)
+	{
+		for(j=0;j<n-1;j++)
+		{
+			if(array[j+1].arriveltime<array[j].arriveltime)
+			{
+				process a=array[j+1];
+				array[j+1]=array[j];
+				array[j]=a;
+				z=1;
+			}
+		}
+		if(z==0)
+		break;
+	}
+	
+}
+
+
+
+#endif
